@@ -13,6 +13,9 @@ INSTALLED_APPS += [
 
 ALLOWED_HOSTS.append('testserver')
 
+for key in RQ_QUEUES:
+    RQ_QUEUES[key]['HOST'] = os.getenv('CVAT_REDIS_HOST', 'localhost')
+
 # Django-sendfile:
 # https://github.com/moggers87/django-sendfile2
 SENDFILE_BACKEND = 'django_sendfile.backends.development'

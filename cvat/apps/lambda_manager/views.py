@@ -20,6 +20,7 @@ from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from rest_framework import status, viewsets, serializers
 from rest_framework.response import Response
+import logging
 
 import cvat.apps.dataset_manager as dm
 from cvat.apps.engine.frame_provider import FrameProvider
@@ -83,7 +84,7 @@ class LambdaGateway:
         return response
 
     def invoke(self, func, payload):
-        if os.getenv('KUBERNETES_SERVICE_HOST'):
+        if not os.getenv('NUCLIO_DIRECT_CALLS') and os.getenv('KUBERNETES_SERVICE_HOST'):
             return self._http(method="post", url='/api/function_invocations',
             data=payload, headers={
                 'x-nuclio-function-name': func.id,
@@ -93,7 +94,12 @@ class LambdaGateway:
         # Note: call the function directly without the nuclio dashboard
         # host.docker.internal for Linux will work only with Docker 20.10+
         NUCLIO_TIMEOUT = settings.NUCLIO['DEFAULT_TIMEOUT']
-        if os.path.exists('/.dockerenv'): # inside a docker container
+        logging.error("Calling the function directly")
+        logging.info("Calling the function directly")
+        logging.error(func.url)
+        if os.getenv('NUCLIO_DIRECT_CALLS'):
+            url = func.url
+        elif os.path.exists('/.dockerenv'): # inside a docker container
             url = f'http://host.docker.internal:{func.port}'
         else:
             url = f'http://localhost:{func.port}'
@@ -133,6 +139,7 @@ class LambdaFunction:
         self.state = data['status']['state']
         # description of the function
         self.description = data['spec']['description']
+        self.url = data['status']['internalInvocationUrls'][0]
         # http port to access the serverless function
         self.port = data["status"].get("httpPort")
         # framework which is used for the function (e.g. tensorflow, openvino)
